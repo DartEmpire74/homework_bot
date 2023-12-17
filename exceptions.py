@@ -8,3 +8,9 @@ class TokenNotFound(Exception):
     """Исключение, обрабатывающее ошибки переменных окружения."""
 
     pass
+
+
+class EmptyResponseError(Exception):
+    """Исключение, обрабатывающее пустой ответ API."""
+
+    pass
