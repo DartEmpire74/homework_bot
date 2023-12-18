@@ -53,18 +53,15 @@ def get_api_answer(timestamp: int) -> dict:
     """Делает запрос к API и возвращает ответ."""
     request_info = {
         'endpoint': ENDPOINT,
+        'params': {'from_date': timestamp},
         'headers': HEADERS,
-        'params': {'from_date': timestamp}
     }
     try:
         logging.debug(
             'Бот делает запрос к API:'
             '{endpoint}; {headers}; {params}'.format(**request_info)
         )
-        response = requests.get(
-            ENDPOINT, headers=request_info['headers'],
-            params=request_info['params']
-        )
+        response = requests.get(**request_info)
         if response.status_code != HTTPStatus.OK:
             raise exceptions.UnexpectedStatusCodeError(
                 f'Cтатус ответа от {ENDPOINT} отличен от 2хх')
@@ -83,12 +80,12 @@ def check_response(response: dict) -> bool:
         raise exceptions.EmptyResponseError(
             "В ответе остутствует список с дом. заданиями: 'homeworks'"
         )
-    homeworks_list = response.get('homeworks')
-    if not isinstance(homeworks_list, list):
+    homeworks = response.get('homeworks')
+    if not isinstance(homeworks, list):
         raise TypeError("Ошибка типа данных.")
     if 'error' in response:
         raise exceptions.UnexpectedStatusCodeError('Ошибка в ответе API')
-    return homeworks_list
+    return homeworks
 
 
 def parse_status(homework: dict) -> str:
@@ -115,31 +112,31 @@ def main():
     check_tokens()
     bot = telegram.Bot(token=TELEGRAM_TOKEN)
     timestamp = 0
-    prev_homework_status = None
-    prev_error_status = None
+    old_status = None
 
     while True:
         try:
             api_response = get_api_answer(timestamp)
             timestamp = api_response.get('current_date', timestamp)
-            response = check_response(api_response)
-            if len(response) >= 1:
-                last_homework = response[0]
+            homeworks = check_response(api_response)
+            if homeworks:
+                last_homework = homeworks[0]
                 message = parse_status(last_homework)
             else:
                 message = 'Нет новых статусов работы'
-            if message != prev_homework_status:
+            if message != old_status:
                 send_message(bot, message)
-                prev_homework_status = message
+                old_status = message
         except exceptions.EmptyResponseError:
             logging.error(
                 "В ответе остутствует список с дом. заданиями: 'homeworks'"
             )
         except Exception as error:
-            logging.error(f"Сбой в работе программы: {error}")
             message = f"Сбой в работе программы: {error}"
-            if message != prev_error_status:
+            logging.error(message)
+            if message != old_status:
                 send_message(bot, message)
+                old_status = message
         finally:
             time.sleep(RETRY_PERIOD)
 
